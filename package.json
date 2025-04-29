@@ -1,0 +1,19 @@
+{
+  "name": "solana-lvm-final-project",
+  "version": "1.0.0",
+  "description": "Monitor Solana wallet for LVM token transfers and send Telegram alerts",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@pythnetwork/client": "^2.22.1",
+    "@solana/spl-token": "^0.4.13",
+    "@solana/web3.js": "^1.98.2",
+    "axios": "^1.6.7",
+    "install": "^0.13.0",
+    "node-cron": "^3.0.3",
+    "npm": "^11.3.0",
+    "sqlite3": "^5.1.6"
+  }
+}
