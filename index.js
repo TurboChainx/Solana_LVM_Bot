@@ -1,6 +1,5 @@
 const { Connection, PublicKey } = require("@solana/web3.js");
 const { getAccount } = require("@solana/spl-token");
-const { PythConnection } = require('@pythnetwork/client');
 
 const fs = require('fs');
 const FormData = require('form-data');
@@ -13,7 +12,6 @@ const config = require("./config");
 
 const connection = new Connection(config.RPC_URL);
 // const connection = new Connection(config.RPC_URL, "confirmed");
-const pyth = new PythConnection(connection);
 
 // Vault token accounts (real WSOL + LVM SPL token accounts)
 const WSOL_VAULT = new PublicKey("3xsB6fj8zmSjs9vHNXVVneBp3Hoz8w87jcEpBC4iwMrr"); // <--- CONFIRMED WSOL VAULT
@@ -102,37 +100,6 @@ async function getSOLPriceAtMinute(timestamp) {
   }
 }
 
-// Function to get the historical SOL price using CoinGecko API
-// async function getSOLPriceAtDate(dateString) {
-//   if (solPriceCache[dateString]) {
-//     console.log(`✅ Using cached SOL price for ${dateString}: $${solPriceCache[dateString]}`);
-//     return solPriceCache[dateString]; // ✅ Use cached price if already fetched
-//   }
-
-//   try {
-//     const url = `https://api.coingecko.com/api/v3/coins/solana/history?date=${dateString}`;
-//     const response = await axios.get(url);
-//     const price = response.data.market_data.current_price.usd;
-//     solPriceCache[dateString] = price; // ✅ Save in cache
-//     console.log(`SOL price on ${dateString}: $${price}`);
-//     return price;
-//   } catch (err) {
-//     console.error(`❌ Error fetching historical SOL price for ${dateString}:`, err.message);
-//     return 150; // fallback default
-//   }
-// }
-
-// Function to format the date from timestamp
-// This function takes a timestamp and formats it to DD-MM-YYYY
-// It uses the Date object to create a new date and formats the day, month, and year
-function formatDate(timestamp) {
-  const date = new Date(timestamp * 1000);
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = date.getFullYear();
-  return `${day}-${month}-${year}`; // format DD-MM-YYYY
-}
-
 // Function to scan new transactions using Helius API
 // This function fetches the last 100 transactions for the client wallet and checks for token transfers
 // If a transfer is found, it saves the transfer details to the database
@@ -155,12 +122,14 @@ async function scanTransferLVMTransactions() {
     for (const tx of txs) {
 
       const signature = tx.signature;
-      const alreadySaved = await isSignatureSaved(signature);
-      if (alreadySaved) {
-        console.log(`⚡ Skipping already saved tx: ${signature}`);
-        continue;
-      }
 
+      if (isfirstRun) {
+        const alreadySaved = await isSignatureSaved(signature);
+        if (alreadySaved) {
+          console.log(`⚡ Skipping already saved tx: ${signature}`);
+          continue;
+        }
+      }
       const instructions = tx.tokenTransfers || [];
 
       for (const transfer of instructions) {
@@ -170,21 +139,18 @@ async function scanTransferLVMTransactions() {
         if (transfer.mint !== config.TOKEN_MINT) continue;
         const from = transfer.fromUserAccount;
         const to = transfer.toUserAccount;
-        const amount = transfer.tokenAmount;
-        const signature = tx.signature;
-        const timestamp = Math.floor(new Date(tx.timestamp * 1000) / 1000);
-        // const dateString = formatDate(timestamp);
-    
+        
         if (from === config.CLIENT_WALLET || to === config.CLIENT_WALLET) {
+          const amount = transfer.tokenAmount;
+          // const signature = tx.signature;
+          const timestamp = Math.floor(new Date(tx.timestamp * 1000) / 1000);
 
           let solPrice = 0;
 
           if (isfirstRun) {
             console.log("⚠️ First run, skipping SOL price check.");
-            // solPrice = await getSOLPriceAtDate(dateString);
             solPrice = await getSOLPriceAtMinute(timestamp);
             await sleep(2000); // sleep for 2 seconds
-            
           } else {
             console.log("✅ Not first run, checking SOL price...");
             solPrice = await getSOLPrice();
@@ -327,7 +293,6 @@ async function sendTelegramNotification(signature, from, to, amount, walletBalan
 cron.schedule('* * * * *', async () => {
   console.log("🔍 Starting scan for past transactions and real-time monitoring...");
   await scanTransferLVMTransactions();
-  // await getSOLPrice();
 });
 
 module.exports = {

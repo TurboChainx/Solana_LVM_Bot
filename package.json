@@ -7,7 +7,6 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "@pythnetwork/client": "^2.22.1",
     "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.98.2",
     "axios": "^1.6.7",
