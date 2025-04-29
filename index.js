@@ -19,7 +19,7 @@ const pyth = new PythConnection(connection);
 const WSOL_VAULT = new PublicKey("3xsB6fj8zmSjs9vHNXVVneBp3Hoz8w87jcEpBC4iwMrr"); // <--- CONFIRMED WSOL VAULT
 const LVM_VAULT  = new PublicKey("5KejAFhQZ8v4v4R4YxfUmL683Pu3eAPTqzPibknERYok"); // <--- CONFIRMED LVM VAULT
 
-const solPriceCache = {}; // memory cache to avoid too many API calls for same date
+// const solPriceCache = {}; // memory cache to avoid too many API calls for same date
 const maxRetries = 5; // max number of retries for failed requests
 
 let isfirstRun = true; // flag to check if it's the first run
@@ -93,32 +93,34 @@ async function getSOLPriceAtMinute(timestamp) {
         'Authorization': `Apikey ${apiKey}`,
       },
     });
-
-    console.log('SOL Price at the given timestamp:', response.data);
+    current_sol_price = response.data.Data.Data[0].close; // Get the closing price
+    console.log('SOL Price at the given timestamp:', current_sol_price);
+    return current_sol_price; // return current sol price
   } catch (error) {
     console.error('Error fetching SOL price:', error.message);
+    return 150; // fallback manual SOL price
   }
 }
 
 // Function to get the historical SOL price using CoinGecko API
-async function getSOLPriceAtDate(dateString) {
-  if (solPriceCache[dateString]) {
-    console.log(`✅ Using cached SOL price for ${dateString}: $${solPriceCache[dateString]}`);
-    return solPriceCache[dateString]; // ✅ Use cached price if already fetched
-  }
+// async function getSOLPriceAtDate(dateString) {
+//   if (solPriceCache[dateString]) {
+//     console.log(`✅ Using cached SOL price for ${dateString}: $${solPriceCache[dateString]}`);
+//     return solPriceCache[dateString]; // ✅ Use cached price if already fetched
+//   }
 
-  try {
-    const url = `https://api.coingecko.com/api/v3/coins/solana/history?date=${dateString}`;
-    const response = await axios.get(url);
-    const price = response.data.market_data.current_price.usd;
-    solPriceCache[dateString] = price; // ✅ Save in cache
-    console.log(`SOL price on ${dateString}: $${price}`);
-    return price;
-  } catch (err) {
-    console.error(`❌ Error fetching historical SOL price for ${dateString}:`, err.message);
-    return 150; // fallback default
-  }
-}
+//   try {
+//     const url = `https://api.coingecko.com/api/v3/coins/solana/history?date=${dateString}`;
+//     const response = await axios.get(url);
+//     const price = response.data.market_data.current_price.usd;
+//     solPriceCache[dateString] = price; // ✅ Save in cache
+//     console.log(`SOL price on ${dateString}: $${price}`);
+//     return price;
+//   } catch (err) {
+//     console.error(`❌ Error fetching historical SOL price for ${dateString}:`, err.message);
+//     return 150; // fallback default
+//   }
+// }
 
 // Function to format the date from timestamp
 // This function takes a timestamp and formats it to DD-MM-YYYY
@@ -171,7 +173,7 @@ async function scanTransferLVMTransactions() {
         const amount = transfer.tokenAmount;
         const signature = tx.signature;
         const timestamp = Math.floor(new Date(tx.timestamp * 1000) / 1000);
-        const dateString = formatDate(timestamp);
+        // const dateString = formatDate(timestamp);
     
         if (from === config.CLIENT_WALLET || to === config.CLIENT_WALLET) {
 
@@ -179,13 +181,13 @@ async function scanTransferLVMTransactions() {
 
           if (isfirstRun) {
             console.log("⚠️ First run, skipping SOL price check.");
-            solPrice = await getSOLPriceAtDate(dateString);
-            await sleep(1000); // sleep for 2 seconds
-            // solPrice = await getSOLPriceAtMinute(timestamp);
-            isfirstRun = false;
+            // solPrice = await getSOLPriceAtDate(dateString);
+            solPrice = await getSOLPriceAtMinute(timestamp);
+            await sleep(2000); // sleep for 2 seconds
+            
           } else {
             console.log("✅ Not first run, checking SOL price...");
-            solPrice = await getSOLPrice(dateString);
+            solPrice = await getSOLPrice();
             await sleep(1000); // sleep for 2 seconds
           }
 
@@ -212,6 +214,7 @@ async function scanTransferLVMTransactions() {
       }
     }
     limit = maxRetries; // reset limit for next scan
+    isfirstRun = false;
     console.log("✅ Token Transfer transaction scan complete.");
   } catch (error) {
     console.error("❌ Error during new scan:", error.response?.data || error.message);
